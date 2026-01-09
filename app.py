@@ -33,12 +33,27 @@ def get_client() -> OpenAI:
 
 SYSTEM_INSTRUCTIONS = (
     "You are a clinical documentation assistant supporting primary care clinicians. "
-    "Summarize patient-reported pre-visit intake information into concise, neutral, non-diagnostic clinical language. "
+    "Summarize patient-reported pre-visit intake information into concise, neutral, clinician-facing language. "
+
     "Do NOT provide medical advice, diagnoses, risk scores, or treatment recommendations. "
-    "Do NOT add facts not provided. Flag missing/unclear details. "
+    "Do NOT infer causes or make assumptions beyond the provided data. "
+    "Do NOT add facts that were not explicitly reported. "
+
+    "Use conservative phrasing such as 'reports', 'notes', or 'not reported' when information is absent. "
+
+    "If clinically relevant information is missing or unclear, you MUST include it in the 'items_to_clarify' section. "
+    "Examples include missing vitals, unclear medication dose/duration, symptom severity, duration, or family history. "
+
+    "Use professional clinical phrasing and avoid casual or colloquial language. "
+
     "Assume all information is patient-reported and unverified. "
-    "Always include a disclaimer: 'This is AI-generated from patient-reported information and has not been verified by a clinician.'"
+    
+    "When describing lifestyle or behavioral factors, use neutral medical phrasing (e.g., 'dietary challenges' instead of informal expressions)."
+
+    "Always include the disclaimer: "
+    "'This is AI-generated from patient-reported information and has not been verified by a clinician.'"
 )
+
 
 CLINICIAN_SUMMARY_SCHEMA = {
     "type": "object",
@@ -82,15 +97,25 @@ CLINICIAN_SUMMARY_SCHEMA = {
 
 @st.cache_data(show_spinner=False)
 def generate_clinician_summary(payload: dict) -> dict:
+    """
+    Cached to avoid repeat charges if the same payload is re-run.
+    Uses Structured Outputs to enforce schema compliance.
+    """
     client = get_client()
+
     response = client.responses.create(
         model="gpt-4o-mini",
         input=[
-            {"role": "system", "content": SYSTEM_INSTRUCTIONS},
+            {
+                "role": "system",
+                "content": SYSTEM_INSTRUCTIONS,
+            },
             {
                 "role": "user",
                 "content": (
-                    "Return ONLY valid JSON matching the schema.\n\n"
+                    "Return ONLY valid JSON matching the schema. "
+                    "Ensure the 'items_to_clarify' section contains at least 2–4 entries "
+                    "when clinically relevant information is missing or unclear.\n\n"
                     f"PAYLOAD:\n{json.dumps(payload, ensure_ascii=False)}"
                 ),
             },
@@ -104,7 +129,10 @@ def generate_clinician_summary(payload: dict) -> dict:
             }
         },
     )
-    return json.loads(response.output_text)
+
+    raw = response.output_text
+    return json.loads(raw)
+
 
 # ----------------------------
 # Options
