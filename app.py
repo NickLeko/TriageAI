@@ -1,8 +1,104 @@
+import json
 import streamlit as st
+from openai import OpenAI
 
 st.set_page_config(page_title="TriageAI MVP", layout="wide")
 st.title("TriageAI — Primary Care Pre-Visit Intake (MVP)")
 
+# ----------------------------
+# OpenAI client (from Streamlit Secrets)
+# ----------------------------
+def get_client() -> OpenAI:
+    api_key = st.secrets.get("OPENAI_API_KEY")
+    if not api_key:
+        st.error("Missing OPENAI_API_KEY in Streamlit Secrets.")
+        st.stop()
+    return OpenAI(api_key=api_key)
+
+SYSTEM_INSTRUCTIONS = (
+    "You are a clinical documentation assistant supporting primary care clinicians. "
+    "Summarize patient-reported pre-visit intake information into concise, neutral, non-diagnostic clinical language. "
+    "Do NOT provide medical advice, diagnoses, risk scores, or treatment recommendations. "
+    "Do NOT add facts not provided. Flag missing/unclear details. "
+    "Assume all information is patient-reported and unverified."
+)
+
+CLINICIAN_SUMMARY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "clinical_summary": {"type": "string"},
+        "structured_data": {
+            "type": "object",
+            "properties": {
+                "reason_for_visit": {"type": "string"},
+                "duration": {"type": "string"},
+                "symptom_trend": {"type": "string"},
+                "past_medical_history": {"type": "array", "items": {"type": "string"}},
+                "medications": {"type": "array", "items": {"type": "string"}},
+                "allergies": {"type": "array", "items": {"type": "string"}},
+                "social_history_flags": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": [
+                "reason_for_visit",
+                "duration",
+                "symptom_trend",
+                "past_medical_history",
+                "medications",
+                "allergies",
+                "social_history_flags",
+            ],
+            "additionalProperties": False,
+        },
+        "items_to_clarify": {"type": "array", "items": {"type": "string"}},
+        "data_quality_notes": {"type": "array", "items": {"type": "string"}},
+        "disclaimer": {"type": "string"},
+    },
+    "required": [
+        "clinical_summary",
+        "structured_data",
+        "items_to_clarify",
+        "data_quality_notes",
+        "disclaimer",
+    ],
+    "additionalProperties": False,
+}
+
+@st.cache_data(show_spinner=False)
+def generate_clinician_summary(payload: dict) -> dict:
+    """
+    Cached to avoid repeat charges when re-running Streamlit with the same payload.
+    """
+    client = get_client()
+
+    response = client.responses.create(
+        model="gpt-4.1-mini",  # stable + cheap for MVP; swap later if you want
+        input=[
+            {"role": "system", "content": SYSTEM_INSTRUCTIONS},
+            {
+                "role": "user",
+                "content": (
+                    "Return ONLY valid JSON that matches the provided schema. "
+                    "Summarize this intake payload:\n\n"
+                    f"{json.dumps(payload, ensure_ascii=False)}"
+                ),
+            },
+        ],
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "clinician_summary",
+                "strict": True,
+                "schema": CLINICIAN_SUMMARY_SCHEMA,
+            }
+        },
+    )
+
+    raw = response.output_text
+    return json.loads(raw)
+
+# ----------------------------
+# Intake form
+# ----------------------------
 COMMON_CONDITIONS = [
     "Hypertension", "Diabetes", "Asthma", "Depression/Anxiety",
     "Hypothyroidism", "Hyperlipidemia", "GERD", "COPD",
@@ -14,14 +110,14 @@ YESNO = ["No", "Yes"]
 
 left, right = st.columns([1, 1], gap="large")
 
-# Initialize defaults so variables exist before submit
 payload = {}
+submitted = False
 
 with left:
     st.subheader("Patient Intake Form")
 
     with st.form("intake_form", clear_on_submit=False):
-        submitted = st.form_submit_button("Generate Intake JSON")
+        submitted = st.form_submit_button("Generate Clinician Summary")
 
         with st.expander("Basics", expanded=True):
             age = st.number_input("Age", min_value=0, max_value=120, value=25, step=1)
@@ -61,7 +157,6 @@ with left:
                 height=80
             )
 
-        # Normalize PMH
         pmh = [c for c in conditions if c != "Other"]
         if other_conditions.strip():
             pmh.append(other_conditions.strip())
@@ -84,11 +179,42 @@ with left:
         }
 
 with right:
-    st.subheader("Clinician Summary (Next Step)")
+    st.subheader("Clinician Summary")
 
-    if submitted:
-        st.success("Intake JSON generated")
-        st.json(payload)
+    if not submitted:
+        st.info("Fill the form and click **Generate Clinician Summary**.")
     else:
-        st.info("Fill the form and click **Generate Intake JSON**.")
+        if not payload.get("reason_for_visit"):
+            st.error("Please enter the main reason for visit before generating a summary.")
+            st.json(payload)
+        else:
+            st.caption("Intake payload (debug)")
+            st.json(payload)
 
+            with st.spinner("Generating clinician summary..."):
+                try:
+                    summary = generate_clinician_summary(payload)
+
+                    st.markdown("### Clinical Summary")
+                    st.write(summary["clinical_summary"])
+
+                    st.markdown("### Structured Data")
+                    st.json(summary["structured_data"])
+
+                    st.markdown("### Items to Clarify")
+                    if summary["items_to_clarify"]:
+                        st.write(summary["items_to_clarify"])
+                    else:
+                        st.write(["None"])
+
+                    st.markdown("### Data Quality Notes")
+                    if summary["data_quality_notes"]:
+                        st.write(summary["data_quality_notes"])
+                    else:
+                        st.write(["None"])
+
+                    st.caption(summary["disclaimer"])
+
+                except Exception as e:
+                    st.error("LLM call failed. See error details below.")
+                    st.exception(e)
