@@ -80,8 +80,6 @@ with left:
             "drugs": drugs,
             "additional_notes": additional_notes.strip()
         }
-
-
     else:
         st.info("Fill the form and click **Generate Intake JSON**.")
 
