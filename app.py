@@ -46,6 +46,9 @@ SYSTEM_INSTRUCTIONS = (
 
     "Use professional clinical phrasing and avoid casual or colloquial language. "
 
+    "When summarizing patient statements about food, weight, or lifestyle, use neutral functional language (e.g., appetite, dietary adherence) and avoid interpretive or emotive phrasing."
+
+
     "Assume all information is patient-reported and unverified. "
     
     "When describing lifestyle or behavioral factors, use neutral medical phrasing (e.g., 'dietary challenges' instead of informal expressions)."
