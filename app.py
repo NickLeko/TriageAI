@@ -2,14 +2,18 @@ import json
 import streamlit as st
 from openai import OpenAI
 
-# Add CSS for left column scrolling
+# Enhanced CSS for left column scrolling - added !important and adjusted selector for reliability
 st.markdown(
     """
     <style>
-        [data-testid="column"]:nth-of-type(1) {
-            overflow-y: auto;
-            max-height: 100vh;  /* Adjust to 90vh or 100vh if needed for more space */
-            padding-right: 10px;  /* Optional: scrollbar space */
+        section[data-testid="column"]:first-of-type {
+            overflow-y: auto !important;
+            max-height: 80vh !important;  /* Try 90vh or calc(100vh - 200px) if still cut off */
+            padding-right: 15px !important;  /* Space for scrollbar */
+        }
+        section[data-testid="column"]:first-of-type .stMarkdown, 
+        section[data-testid="column"]:first-of-type .stForm {
+            height: auto !important;
         }
     </style>
     """,
