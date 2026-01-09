@@ -81,12 +81,15 @@ with left:
             "additional_notes": additional_notes.strip()
         }
 
-    if submitted:
-        st.success("Payload created.")
-        st.json(payload)
+
     else:
         st.info("Fill the form and click **Generate Intake JSON**.")
 
 with right:
     st.subheader("Clinician Summary (Next Step)")
-    st.info("Once intake JSON works, we’ll connect the LLM and render the clinician summary here.")
+
+    if submitted:
+        st.success("Intake JSON generated")
+        st.json(payload)
+    else:
+        st.info("Fill the form and click **Generate Intake JSON**.")
