@@ -2,18 +2,22 @@ import json
 import streamlit as st
 from openai import OpenAI
 
-# Enhanced CSS for left column scrolling - added !important and adjusted selector for reliability
+# Enhanced CSS for left column scrolling - refined selector and added flex for better compatibility
 st.markdown(
     """
     <style>
-        section[data-testid="column"]:first-of-type {
-            overflow-y: auto !important;
-            max-height: 80vh !important;  /* Try 90vh or calc(100vh - 200px) if still cut off */
-            padding-right: 15px !important;  /* Space for scrollbar */
+        div[data-testid="column"]:first-of-type {
+            overflow-y: scroll !important;
+            max-height: calc(100vh - 200px) !important;  # Increased height, subtracts space for header/banner
+            padding-right: 20px !important;  # More space for scrollbar
+            display: flex !important;
+            flex-direction: column !important;
         }
-        section[data-testid="column"]:first-of-type .stMarkdown, 
-        section[data-testid="column"]:first-of-type .stForm {
-            height: auto !important;
+        div[data-testid="column"]:first-of-type > div {
+            flex: 1 !important;
+        }
+        .stExpander > div[role="button"] p {
+            font-size: 1rem;  # Optional: Smaller expander text to save space
         }
     </style>
     """,
@@ -22,7 +26,7 @@ st.markdown(
 
 st.set_page_config(page_title="TriageAI MVP", layout="wide")
 
-# Top-Level Disclaimer Banner
+# Top-Level Disclaimer Banner - moved outside columns to save vertical space in form
 st.markdown(
     """
     <div style="background-color: #ffcccc; padding: 15px; border-radius: 10px; margin-bottom: 30px; border-left: 5px solid #ff0000;">
